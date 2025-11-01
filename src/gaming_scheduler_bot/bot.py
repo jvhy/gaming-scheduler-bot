@@ -4,10 +4,11 @@ import logging
 
 import discord
 from discord.ext import commands
+from sqlalchemy import create_engine, MetaData, Table, func, select, literal, text
 
 from db import SessionLocal
 from models import ScheduledTime
-from utils import parse_date, validate_timespan, InvalidDateFormatError, InvalidTimespanError
+from utils import parse_date, validate_timespan, build_calendar_string, InvalidDateFormatError, InvalidTimespanError
 
 
 token = os.getenv("DISCORD_TOKEN")
@@ -36,7 +37,7 @@ async def gaming(ctx, date, timespan):
         await ctx.message.reply("Give a valid timespan, dumbass (between 9:00 and 00:00)")
 
     start_time = parsed_date + timedelta(hours=start)
-    end_time = parsed_date + timedelta(hours=end) - timedelta(seconds=1)
+    end_time = parsed_date + timedelta(hours=end) - timedelta(minutes=1)
     with SessionLocal() as session:
         scheduled_time = ScheduledTime(
             user=ctx.author.name, start_time=start_time, end_time=end_time
@@ -45,6 +46,48 @@ async def gaming(ctx, date, timespan):
         session.add(scheduled_time)
         session.commit()
     await ctx.send(f"{ctx.author.display_name} is a certified gamer on {date} at {timespan}.")
+
+
+@bot.command()
+async def calendar(ctx):
+    with SessionLocal() as session:
+        window_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        window_end = window_start + timedelta(days=7)
+
+        metadata = MetaData()
+        availability = Table("times", metadata, autoload_with=session.bind)
+
+        # Recursive CTE to generate hourly slots
+        slots = (
+            select(literal(window_start).label("slot_start"))
+            .cte("slots", recursive=True)
+        )
+
+        slots = slots.union_all(
+            select(func.datetime(slots.c.slot_start, "+1 hour"))
+            .where(slots.c.slot_start < window_end)
+        )
+
+        q = (
+            select(
+                slots.c.slot_start,
+                func.count(func.distinct(availability.c.user)).label("available"),
+            )
+            .select_from(
+                slots.outerjoin(
+                    availability,
+                    (availability.c.start_time < func.datetime(slots.c.slot_start, "+1 hour"))
+                    & (availability.c.end_time > slots.c.slot_start),
+                )
+            )
+            .group_by(slots.c.slot_start)
+            .order_by(slots.c.slot_start)
+        )
+
+        rows = session.execute(q).all()
+        user_counts = {dt: count for dt, count in rows}
+        result = build_calendar_string(user_counts)
+        await ctx.send(result)
 
 
 def run():

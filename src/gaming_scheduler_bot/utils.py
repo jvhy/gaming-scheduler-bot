@@ -17,6 +17,7 @@ def parse_date(date_str: str) -> datetime:
             parsed_date = datetime.strptime(date_str, "%d.%m.%Y").date()
         except ValueError:
             raise InvalidDateFormatError("Invalid date format. Please use YYYY-MM-DD or DD.MM.YYYY.")
+    parsed_date = datetime.combine(parsed_date, datetime.min.time())
     return parsed_date
 
 
@@ -33,6 +34,8 @@ def validate_timespan(timespan: str) -> str:
         raise InvalidTimespanError("Start time must be before the end time.")
     if start < 9 or start > 23:
         raise InvalidTimespanError("Start time must be between 09:00 and 23:00.")
-    if (end < 10 or end < 23) and end != 0:
+    if (end < 10 or end > 23) and end != 0:
         raise InvalidTimespanError("End time must be between 10:00 and 00:00.")
-    return timespan
+    if end == 0:
+        end = 24
+    return start, end

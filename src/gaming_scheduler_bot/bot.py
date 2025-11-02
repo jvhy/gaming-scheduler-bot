@@ -4,6 +4,7 @@ import logging
 
 import discord
 from discord.ext import commands
+from discord.ui import Button, View
 from sqlalchemy import MetaData, Table, func, select, literal
 
 from db import SessionLocal
@@ -140,6 +141,97 @@ async def calendar(ctx):
         user_counts = {dt: count for dt, count in rows}
         result = build_calendar_string(user_counts)
         await ctx.send(result)
+
+
+class HourButton(Button):
+    def __init__(self, time_slot, selected):
+        label = time_slot.strftime("%H:00")
+        style = discord.ButtonStyle.success if selected else discord.ButtonStyle.secondary
+        super().__init__(label=label, style=style)
+        self.time_slot = time_slot
+
+    async def callback(self, interaction):
+        if self.style == discord.ButtonStyle.success:
+            self.style = discord.ButtonStyle.secondary
+        else:
+            self.style = discord.ButtonStyle.success
+        await interaction.response.edit_message(view=self.view)
+
+
+class PrevDayButton(Button):
+    def __init__(self, disable=False):
+        super().__init__(label="⬅️ Prev")
+        if disable:
+            self.disabled = True
+
+    async def callback(self, interaction):
+        view = self.view
+        view.day_index -= 1
+        view.load_day()
+        await view.update_message(interaction)
+
+
+class NextDayButton(Button):
+    def __init__(self, disable=False):
+        super().__init__(label="Next ➡️")
+        if disable:
+            self.disabled = True
+
+    async def callback(self, interaction):
+        view = self.view
+        view.day_index += 1
+        view.load_day()
+        await view.update_message(interaction)
+
+
+class SchedulerView(View):
+    def __init__(self):
+        super().__init__()
+        self.day_index = 0
+        self.day_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        self.set_message()
+        self.load_day()
+
+    def load_day(self):
+        # Clear old items
+        self.clear_items()
+
+        now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        self.day_start = now + timedelta(days=self.day_index)
+
+        # Add hour buttons for 09:00 → 24:00
+        for h in range(9, 24):
+            time_slot = self.day_start.replace(hour=h)
+            selected = False
+            self.add_item(HourButton(time_slot, selected))
+
+        # Pagination buttons
+        if self.day_index == 0:
+            self.add_item(PrevDayButton(disable=True))
+            self.add_item(NextDayButton())
+        elif self.day_index == 6:
+            self.add_item(PrevDayButton())
+            self.add_item(NextDayButton(disable=True))
+        else:
+            self.add_item(PrevDayButton())
+            self.add_item(NextDayButton())
+
+    def set_message(self):
+        weekday = self.day_start.strftime("%A")
+        date_str = self.day_start.strftime("%d.%m.%Y")
+        text = f"{weekday}, {date_str}"
+        self.message = text
+
+    async def update_message(self, interaction):
+        """Updates both buttons and the message text."""
+        self.set_message()
+        await interaction.response.edit_message(content=self.message, view=self)
+
+
+@bot.command()
+async def scheduler(ctx):
+    view = SchedulerView()
+    await ctx.send(view.message, view=view, delete_after=120)
 
 
 def run():

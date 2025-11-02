@@ -113,8 +113,12 @@ class HourButton(Button):
 
     async def callback(self, interaction):
         if self.style == discord.ButtonStyle.success:
+            with SessionLocal() as session:
+                cancel(session, self.view.user, self.time_slot, self.time_slot + timedelta(minutes=59, seconds=59))
             self.style = discord.ButtonStyle.secondary
         else:
+            with SessionLocal() as session:
+                schedule(session, self.view.user, self.time_slot, self.time_slot + timedelta(minutes=59, seconds=59))
             self.style = discord.ButtonStyle.success
         await interaction.response.edit_message(view=self.view)
 
@@ -146,8 +150,9 @@ class NextDayButton(Button):
 
 
 class SchedulerView(View):
-    def __init__(self):
+    def __init__(self, user):
         super().__init__()
+        self.user = user
         self.day_index = 0
         self.day_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         self.set_message()
@@ -160,10 +165,19 @@ class SchedulerView(View):
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         self.day_start = now + timedelta(days=self.day_index)
 
+        with SessionLocal() as session:
+            user_scheduled_times = {
+                t.start_time for t in session.query(ScheduledTime).filter(
+                    ScheduledTime.user == self.user,
+                    ScheduledTime.start_time >= self.day_start,
+                    ScheduledTime.end_time <= self.day_start + timedelta(hours=23, minutes=59, seconds=59)
+                ).all()
+            }
+
         # Add hour buttons for 09:00 → 24:00
         for h in range(9, 24):
             time_slot = self.day_start.replace(hour=h)
-            selected = False
+            selected = time_slot in user_scheduled_times
             self.add_item(HourButton(time_slot, selected))
 
         # Pagination buttons
@@ -191,7 +205,7 @@ class SchedulerView(View):
 
 @bot.command()
 async def scheduler(ctx):
-    view = SchedulerView()
+    view = SchedulerView(user=ctx.author.name)
     await ctx.send(view.message, view=view, delete_after=120)
 
 

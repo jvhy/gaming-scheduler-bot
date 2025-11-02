@@ -106,9 +106,15 @@ def collapse_hours(rows):
     per_user = defaultdict(list)
 
     # 1. group by user, convert start_time to datetime
-    for (username, start) in rows:
-        per_user[username].append(start)
-
+    for (username, start, end) in rows:
+        scheduled_slots = []
+        current = start
+        end = end + timedelta(seconds=1)
+        while current < end:
+            bucket_end = min(current + timedelta(hours=1), end)
+            scheduled_slots.append(current)
+            current = bucket_end
+        per_user[username].extend(scheduled_slots)
     result = {}
 
     # 2. sort & collapse

@@ -179,18 +179,25 @@ class SchedulerView(View):
         self.day_start = now + timedelta(days=self.day_index)
 
         with SessionLocal() as session:
-            user_scheduled_times = {
-                t.start_time for t in session.query(ScheduledTime).filter(
-                    ScheduledTime.user == self.user,
-                    ScheduledTime.start_time >= self.day_start,
-                    ScheduledTime.end_time <= self.day_start + timedelta(hours=23, minutes=59, seconds=59)
-                ).all()
-            }
+            user_scheduled_times = session.query(ScheduledTime).filter(
+                ScheduledTime.user == self.user,
+                ScheduledTime.start_time >= self.day_start,
+                ScheduledTime.end_time <= self.day_start + timedelta(hours=23, minutes=59, seconds=59)
+            ).all()
+
+        scheduled_slots = []
+        for time in user_scheduled_times:
+            current = time.start_time
+            end = time.end_time + timedelta(seconds=1)
+            while current < end:
+                bucket_end = min(current + timedelta(hours=1), end)
+                scheduled_slots.append(current)
+                current = bucket_end
 
         # Add hour buttons for 09:00 → 24:00
         for h in range(9, 24):
             time_slot = self.day_start.replace(hour=h)
-            selected = time_slot in user_scheduled_times
+            selected = time_slot in scheduled_slots
             self.add_item(HourButton(time_slot, selected))
 
         # Pagination buttons
@@ -245,7 +252,7 @@ async def gamers(ctx, date=None):
                 await ctx.message.reply("Give a proper date, dumbass")
                 return
     with SessionLocal() as session:
-        scheduled_times = session.query(ScheduledTime.user, ScheduledTime.start_time).filter(
+        scheduled_times = session.query(ScheduledTime.user, ScheduledTime.start_time, ScheduledTime.end_time).filter(
             func.date(ScheduledTime.start_time) == date
         ).all()
     user_ranges = collapse_hours(scheduled_times)

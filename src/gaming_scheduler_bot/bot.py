@@ -30,6 +30,7 @@ async def on_ready():
 
 @bot.command()
 async def gaming(ctx, date, timespan):
+    """Schedule gaming time. Example: !gaming 2023-04-05 18-20"""
     try:
         if date.isalpha():
             parsed_date = interpret_relative_date(date)
@@ -45,11 +46,12 @@ async def gaming(ctx, date, timespan):
     end_time = parsed_date + timedelta(hours=end) - timedelta(seconds=1)
     with SessionLocal() as session:
         schedule(session, ctx.author.name, start_time, end_time)
-    await ctx.send(f"{ctx.author.display_name} is a certified gamer on {parsed_date.date().strftime('%d.%m.%Y')} at {timespan}.")
+    await ctx.message.reply(f"{ctx.author.display_name} is a certified gamer on {parsed_date.date().strftime('%d.%m.%Y')} at {timespan}.")
 
 
 @bot.command()
 async def busy(ctx, date, timespan):
+    """Mark busy time. Example: !busy 2023-04-05 14-16"""
     try:
         if date.isalpha():
             parsed_date = interpret_relative_date(date)
@@ -65,11 +67,12 @@ async def busy(ctx, date, timespan):
     end_time = parsed_date + timedelta(hours=end) - timedelta(seconds=1)
     with SessionLocal() as session:
         cancel(session, ctx.author.name, start_time, end_time)
-    await ctx.send(f"{ctx.author.display_name} cancelled any planned gaming on {parsed_date.date().strftime('%d.%m.%Y')} at {timespan}.")
+    await ctx.message.reply(f"{ctx.author.display_name} cancelled any planned gaming on {parsed_date.date().strftime('%d.%m.%Y')} at {timespan}.")
 
 
 @bot.command()
 async def calendar(ctx):
+    """Show calendar with group availability. Red = bad, Green = good"""
     with SessionLocal() as session:
         window_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         window_end = window_start + timedelta(days=7)
@@ -107,7 +110,7 @@ async def calendar(ctx):
         rows = session.execute(q).all()
         user_counts = {dt: count for dt, count in rows}
         result = build_calendar_string(user_counts)
-        await ctx.send(result)
+        await ctx.message.reply(result)
 
 
 class HourButton(Button):
@@ -211,6 +214,7 @@ class SchedulerView(View):
 
 @bot.command()
 async def scheduler(ctx):
+    """Open scheduler UI (works in DMs only)"""
     if isinstance(ctx.message.channel, discord.channel.DMChannel):
         view = SchedulerView(user=ctx.author.name)
         await ctx.send(view.message, view=view, delete_after=120)
@@ -220,6 +224,7 @@ async def scheduler(ctx):
 
 @bot.command()
 async def gamers(ctx, date=None):
+    """Show who's gaming. Example: !gamers tomorrow"""
     if date is None:
         date = datetime.today().date()
     else:
@@ -247,7 +252,7 @@ async def gamers(ctx, date=None):
     msg = [f"Gamers on {date_str}:"]
     for user, ranges in user_ranges.items():
         msg.append(f"• **{user}**: {', '.join(ranges)}")
-    await ctx.send("\n".join(msg))
+    await ctx.message.reply("\n".join(msg))
 
 
 def run():

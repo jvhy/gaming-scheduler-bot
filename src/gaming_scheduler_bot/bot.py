@@ -10,7 +10,7 @@ from sqlalchemy import MetaData, Table, func, select, literal
 from db import SessionLocal
 from models import ScheduledTime
 from scheduling import schedule, cancel
-from utils import parse_date, validate_timespan, build_calendar_string, InvalidDateFormatError, InvalidTimespanError
+from utils import parse_date, validate_timespan, build_calendar_string, collapse_hours, InvalidDateFormatError, InvalidTimespanError
 
 
 token = os.getenv("DISCORD_TOKEN")
@@ -210,6 +210,31 @@ async def scheduler(ctx):
         await ctx.send(view.message, view=view, delete_after=120)
     else:
         await ctx.message.reply("Not here dumbass, in DMs")
+
+
+@bot.command()
+async def gamers(ctx, date=None):
+    if date is None:
+        date = datetime.today().date()
+    else:
+        try:
+            date = parse_date(date).date()
+        except InvalidDateFormatError:
+            await ctx.message.reply("Give a proper date, dumbass (YYYY-MM-DD or DD.MM.YYYY)")
+            return
+    with SessionLocal() as session:
+        scheduled_times = session.query(ScheduledTime.user, ScheduledTime.start_time).filter(
+            func.date(ScheduledTime.start_time) == date
+        ).all()
+    user_ranges = collapse_hours(scheduled_times)
+    date_str = f"{datetime.strftime(date, "%A")}, {datetime.strftime(date, "%d.%m.%Y")}"
+    if not user_ranges:
+        await ctx.send(f"No gamers on {date_str} :(")
+        return
+    msg = [f"Gamers on {date_str}:"]
+    for user, ranges in user_ranges.items():
+        msg.append(f"• **{user}**: {', '.join(ranges)}")
+    await ctx.send("\n".join(msg))
 
 
 def run():

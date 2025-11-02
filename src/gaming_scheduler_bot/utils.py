@@ -1,4 +1,4 @@
-import calendar
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from models import ScheduledTime
@@ -95,3 +95,48 @@ def build_calendar_string(hourly_user_counts: dict[datetime, int]) -> str:
             else:
                 calendar_str += "  "
     return "```\n" + calendar_str + "\n```"
+
+
+def collapse_hours(rows):
+    """
+    Collapse list of db entries to printable ranges, grouped by user.
+    """
+
+    per_user = defaultdict(list)
+
+    # 1. group by user, convert start_time to datetime
+    for (username, start) in rows:
+        per_user[username].append(start)
+
+    result = {}
+
+    # 2. sort & collapse
+    for user, times in per_user.items():
+        times.sort()
+        collapsed = []
+        block_start = times[0]
+        prev = times[0]
+
+        for t in times[1:]:
+            if t == prev + timedelta(hours=1):
+                # contiguous, extend block
+                prev = t
+            else:
+                # block ended
+                collapsed.append((block_start, prev))
+                block_start = t
+                prev = t
+
+        # last block
+        collapsed.append((block_start, prev))
+
+        # 3. convert to printable ranges, e.g. 20–23
+        formatted = []
+        for start, end in collapsed:
+            start_h = start.strftime("%H")
+            end_h = (end + timedelta(hours=1)).strftime("%H")  # add 1 hour because end is inclusive
+            formatted.append(f"{start_h}-{end_h}")
+
+        result[user] = formatted
+
+    return result

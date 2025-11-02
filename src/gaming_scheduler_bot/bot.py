@@ -9,6 +9,7 @@ from sqlalchemy import MetaData, Table, func, select, literal
 
 from db import SessionLocal
 from models import ScheduledTime
+from scheduling import schedule, cancel
 from utils import parse_date, validate_timespan, build_calendar_string, InvalidDateFormatError, InvalidTimespanError
 
 
@@ -40,12 +41,7 @@ async def gaming(ctx, date, timespan):
     start_time = parsed_date + timedelta(hours=start)
     end_time = parsed_date + timedelta(hours=end) - timedelta(seconds=1)
     with SessionLocal() as session:
-        scheduled_time = ScheduledTime(
-            user=ctx.author.name, start_time=start_time, end_time=end_time
-        )
-        # TODO: check for overlap in existing times
-        session.add(scheduled_time)
-        session.commit()
+        schedule(session, ctx.author.name, start_time, end_time)
     await ctx.send(f"{ctx.author.display_name} is a certified gamer on {date} at {timespan}.")
 
 
@@ -61,44 +57,9 @@ async def busy(ctx, date, timespan):
 
     start_time = parsed_date + timedelta(hours=start)
     end_time = parsed_date + timedelta(hours=end) - timedelta(seconds=1)
-    # Find the overlapping time spans that have been marked as available time
     with SessionLocal() as session:
-        overlaps = session.query(ScheduledTime).filter(
-            ScheduledTime.user == ctx.author.name,
-            ScheduledTime.start_time < end_time,
-            ScheduledTime.end_time > start_time,
-        ).all()
-        for slot in overlaps:
-            s, e = slot.start_time, slot.end_time
-
-            # Case 1: Entire slot removed
-            if start_time <= s and end_time >= e:
-                session.delete(slot)
-
-            # Case 2: Trim left part
-            elif s < start_time < e <= end_time:
-                slot.end_time = start_time - timedelta(seconds=1)
-
-            # Case 3: Trim right part
-            elif start_time <= s < end_time < e:
-                slot.start_time = end_time + timedelta(seconds=1)
-
-            # Case 4: Split into two
-            elif s < start_time and e > end_time:
-                # left part stays
-                left_end = start_time - timedelta(seconds=1)
-
-                # right part becomes a new range
-                new_slot = ScheduledTime(
-                    user=ctx.author.name,
-                    start_time=end_time + timedelta(seconds=1),
-                    end_time=e,
-                )
-                session.add(new_slot)
-
-                slot.end_time = left_end
-
-        session.commit()
+        cancel(session, ctx.author.name, start_time, end_time)
+    await ctx.send(f"{ctx.author.display_name} cancelled any planned gaming on {date} at {timespan}.")
 
 
 @bot.command()

@@ -205,8 +205,11 @@ class SchedulerView(View):
 
 @bot.command()
 async def scheduler(ctx):
-    view = SchedulerView(user=ctx.author.name)
-    await ctx.send(view.message, view=view, delete_after=120)
+    if isinstance(ctx.message.channel, discord.channel.DMChannel):
+        view = SchedulerView(user=ctx.author.name)
+        await ctx.send(view.message, view=view, delete_after=120)
+    else:
+        await ctx.message.reply("Not here dumbass, in DMs")
 
 
 def run():

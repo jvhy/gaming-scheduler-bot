@@ -114,7 +114,7 @@ async def calendar(ctx):
         rows = session.execute(q).all()
         user_counts = {dt: count for dt, count in rows}
         result = build_calendar_string(user_counts)
-        await ctx.message.reply(result)
+        await ctx.message.reply("@here\n" + result)
 
 
 class HourButton(Button):

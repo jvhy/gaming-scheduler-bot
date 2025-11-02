@@ -29,8 +29,10 @@ async def on_ready():
 
 
 @bot.command()
-async def gaming(ctx, date, timespan):
+async def gaming(ctx, date, timespan=None):
     """Schedule gaming time. Example: !gaming 2023-04-05 18-20"""
+    if timespan is None:
+        timespan = "09-00"
     try:
         if date.isalpha():
             parsed_date = interpret_relative_date(date)
@@ -50,8 +52,10 @@ async def gaming(ctx, date, timespan):
 
 
 @bot.command()
-async def busy(ctx, date, timespan):
+async def busy(ctx, date, timespan=None):
     """Mark busy time. Example: !busy 2023-04-05 14-16"""
+    if timespan is None:
+        timespan = "09-00"
     try:
         if date.isalpha():
             parsed_date = interpret_relative_date(date)

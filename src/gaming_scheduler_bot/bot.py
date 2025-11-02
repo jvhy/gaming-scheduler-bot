@@ -10,7 +10,7 @@ from sqlalchemy import MetaData, Table, func, select, literal
 from db import SessionLocal
 from models import ScheduledTime
 from scheduling import schedule, cancel
-from utils import parse_date, validate_timespan, build_calendar_string, collapse_hours, InvalidDateFormatError, InvalidTimespanError
+from utils import parse_date, validate_timespan, build_calendar_string, collapse_hours, interpret_relative_date, InvalidDateFormatError, InvalidTimespanError
 
 
 token = os.getenv("DISCORD_TOKEN")
@@ -31,7 +31,10 @@ async def on_ready():
 @bot.command()
 async def gaming(ctx, date, timespan):
     try:
-        parsed_date = parse_date(date)
+        if date.isalpha():
+            parsed_date = interpret_relative_date(date)
+        else:
+            parsed_date = parse_date(date)
         start, end = validate_timespan(timespan)
     except InvalidDateFormatError:
         await ctx.message.reply("Give a proper date, dumbass (YYYY-MM-DD or DD.MM.YYYY)")
@@ -42,13 +45,16 @@ async def gaming(ctx, date, timespan):
     end_time = parsed_date + timedelta(hours=end) - timedelta(seconds=1)
     with SessionLocal() as session:
         schedule(session, ctx.author.name, start_time, end_time)
-    await ctx.send(f"{ctx.author.display_name} is a certified gamer on {date} at {timespan}.")
+    await ctx.send(f"{ctx.author.display_name} is a certified gamer on {parsed_date.date().strftime('%d.%m.%Y')} at {timespan}.")
 
 
 @bot.command()
 async def busy(ctx, date, timespan):
     try:
-        parsed_date = parse_date(date)
+        if date.isalpha():
+            parsed_date = interpret_relative_date(date)
+        else:
+            parsed_date = parse_date(date)
         start, end = validate_timespan(timespan)
     except InvalidDateFormatError:
         await ctx.message.reply("Give a proper date, dumbass (YYYY-MM-DD or DD.MM.YYYY)")
@@ -59,7 +65,7 @@ async def busy(ctx, date, timespan):
     end_time = parsed_date + timedelta(hours=end) - timedelta(seconds=1)
     with SessionLocal() as session:
         cancel(session, ctx.author.name, start_time, end_time)
-    await ctx.send(f"{ctx.author.display_name} cancelled any planned gaming on {date} at {timespan}.")
+    await ctx.send(f"{ctx.author.display_name} cancelled any planned gaming on {parsed_date.date().strftime('%d.%m.%Y')} at {timespan}.")
 
 
 @bot.command()
@@ -217,11 +223,18 @@ async def gamers(ctx, date=None):
     if date is None:
         date = datetime.today().date()
     else:
-        try:
-            date = parse_date(date).date()
-        except InvalidDateFormatError:
-            await ctx.message.reply("Give a proper date, dumbass (YYYY-MM-DD or DD.MM.YYYY)")
-            return
+        if date.isalpha():
+            try:
+                date = interpret_relative_date(date).date()
+            except InvalidDateFormatError:
+                await ctx.message.reply("Give a proper date, dumbass")
+                return
+        else:
+            try:
+                date = parse_date(date).date()
+            except InvalidDateFormatError:
+                await ctx.message.reply("Give a proper date, dumbass")
+                return
     with SessionLocal() as session:
         scheduled_times = session.query(ScheduledTime.user, ScheduledTime.start_time).filter(
             func.date(ScheduledTime.start_time) == date

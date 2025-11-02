@@ -1,3 +1,4 @@
+import calendar
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
@@ -140,3 +141,49 @@ def collapse_hours(rows):
         result[user] = formatted
 
     return result
+
+
+def next_weekday(weekday_str: str) -> datetime:
+    # Map full or short names → weekday number (0=Monday, 6=Sunday)
+    weekdays = {name.lower(): i for i, name in enumerate(calendar.day_name)}
+    weekdays.update({name.lower(): i for i, name in enumerate(calendar.day_abbr)})
+    weekdays.update({
+        "maanantai": 0,
+        "tiistai": 1,
+        "keskiviikko": 2,
+        "torstai": 3,
+        "perjantai": 4,
+        "lauantai": 5,
+        "sunnuntai": 6
+    })
+    weekdays.update({
+        "ma": 0,
+        "ti": 1,
+        "ke": 2,
+        "to": 3,
+        "pe": 4,
+        "la": 5,
+        "su": 6
+    })
+    if weekday_str not in weekdays:
+        raise InvalidDateFormatError
+    target = weekdays[weekday_str]
+    today = datetime.now()
+    today_wd = today.weekday()
+    # Days until next target weekday
+    days_ahead = (target - today_wd) % 7
+    next_day = today + timedelta(days=days_ahead)
+    return datetime.combine(next_day, datetime.min.time())
+
+
+def interpret_relative_date(relative_date: str) -> datetime:
+    """
+    Interpret a relative date string like "tomorrow" or "Wednesday" (defaults to next Wednesday) and convert into a datetime object.
+    """
+    relative_date = relative_date.lower().strip()
+    if relative_date in ["today", "tänään"]:
+        return datetime.combine(datetime.today(), datetime.min.time())
+    elif relative_date in ["tomorrow", "huomenna"]:
+        return datetime.combine(datetime.today() + timedelta(days=1), datetime.min.time())
+    else:
+        return next_weekday(relative_date)

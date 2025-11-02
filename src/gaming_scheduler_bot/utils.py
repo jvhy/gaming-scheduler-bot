@@ -61,7 +61,7 @@ def build_calendar_string(hourly_user_counts: dict[datetime, int]) -> str:
     Returns:
         Pretty calendar grid with color coded hourly availability slots:
           - Black  = No users available
-          - Red    = 1 user available
+          - White    = 1 user available
           - Yellow = 2-3 users available
           - Green  = 4+ users available 
     """
@@ -85,7 +85,7 @@ def build_calendar_string(hourly_user_counts: dict[datetime, int]) -> str:
             if count == 0:
                 calendar_str += "\U00002B1B"  # black square
             elif count == 1:
-                calendar_str += "\U0001F7E5"  # red square
+                calendar_str += "\U00002B1C"  # white square
             elif count in [2, 3]:
                 calendar_str += "\U0001F7E8"  # yellow square
             elif count >= 4:
